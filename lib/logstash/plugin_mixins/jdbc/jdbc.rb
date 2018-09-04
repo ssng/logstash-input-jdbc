@@ -162,7 +162,15 @@ module LogStash  module PluginMixins module Jdbc
         end
         raise LogStash::ConfigurationError, "#{e}. #{message}"
       end
-      @database = jdbc_connect()
+      # SSH: abort on error
+      #@database = jdbc_connect()
+      begin
+        @database = jdbc_connect()
+      rescue Sequel::PoolTimeout, Sequel::Error => e
+        @logger.warn("Failed jdbc_connect.", :exception => e)
+        raise Sequel::DatabaseConnectionError
+      end
+      # SSH: end
       @database.extension(:pagination)
       if @jdbc_default_timezone
         @database.extension(:named_timezones)
@@ -218,8 +226,11 @@ module LogStash  module PluginMixins module Jdbc
     def execute_statement(statement, parameters)
       success = false
       @connection_lock.lock
-      open_jdbc_connection
+      # SSH: catch errors raised in open_jdbc_connection
+      #open_jdbc_connection
       begin
+        # SSH: moved into begin block
+        open_jdbc_connection
         params = symbolized_params(parameters)
         query = @database[statement, params]
 
